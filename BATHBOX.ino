@@ -7,7 +7,9 @@
 #define LED 7
 #define BZ 6
 #define SV 8
+#define AutoLED 9
 #define Rain A0
+#define LDR A1
 Servo myservo;
 
 SoftwareSerial se_read(12, 13); // write only
@@ -22,14 +24,12 @@ long microsecondsToCentimeters(long microseconds)
 struct ProjectData {
   /*your data*/
   int32_t IsBoxEmpty;
-  int32_t TotalUsage;
-} project_data = {1,0}; //your value
+} project_data = {1}; //your value
 
 struct ServerData {
   /*your data*/
   int32_t IsBoxEmpty;
-  int32_t TotalUsage;
-} server_data = {1,0};// your value
+} server_data = {1};// your value
 
 const char GET_SERVER_DATA = 1;
 const char GET_SERVER_DATA_RESULT = 2;
@@ -48,7 +48,7 @@ void send_to_nodemcu(char code, void *data, char data_size) {
 }
 
 void AutoClose() {
-  myservo.write(40);
+  myservo.write(250);
   delay(1000);
   myservo.write(130);
 }
@@ -65,7 +65,8 @@ void setup() {
   pinMode(Rain, INPUT);
   myservo.attach(SV);
   myservo.write(130);
-  delay(1000);
+  pinMode(LDR, INPUT);
+  pinMode(AutoLED, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(trigger_pin, OUTPUT);
   digitalWrite(trigger_pin, LOW);
@@ -134,7 +135,6 @@ void loop() {
             ServerData *data = (ServerData*)buffer;
             //use data to control sensor
             server_data.IsBoxEmpty = data->IsBoxEmpty;
-            server_data.TotalUsage = data->TotalUsage;
           } break;
         }
         cur_buffer_length = -1;
@@ -148,9 +148,6 @@ void loop() {
   //Serial.print("Button2 = ");
   //Serial.println(digitalRead(SW2));
   if(digitalRead(SW1) == 0 || digitalRead(SW2) == 0){
-    if(project_data.IsBoxEmpty == 1){
-      project_data.TotalUsage++;
-    }
     project_data.IsBoxEmpty = 0;
     //Serial.println("Not Empty");
   }
@@ -163,8 +160,6 @@ void loop() {
   }
   Serial.print("IsBoxEmpty = ");
   Serial.println(project_data.IsBoxEmpty);
-  //Serial.print("TotalUsage = ");
-  //Serial.println(project_data.TotalUsage);
   ////////////////Check user walk pass the door/////////////////////////////////////////////////////////////////////////
   if(microsecondsToCentimeters(duration) < 10){
     if(StillDetected == 0){
@@ -197,10 +192,10 @@ void loop() {
     analogWrite(BZ, LOW);
     digitalWrite(LED, LOW);
   }
-  Serial.print("Alert = ");
-  Serial.println(Alert);
   Serial.print("User detected = ");
   Serial.println(UserDetected);
+  Serial.print("Alert = ");
+  Serial.println(Alert);
   //////////////////////Auto-Close when shower//////////////////////////////////////////////////////////
   Serial.print("Rain Voltage = ");
   Serial.println(analogRead(Rain));
@@ -213,6 +208,17 @@ void loop() {
   {
     IsFloorWet = 0;
   } 
+  //////////////////////LED auto-on when open the box////////////////////////////////////////////////////////////////////////
+  Serial.print("LDR = ");
+  Serial.println(analogRead(LDR));
+  if(analogRead(LDR) > 100){
+    digitalWrite(AutoLED, HIGH);
+    Serial.println("Auto LED = ON");
+  }
+  else{
+    digitalWrite(AutoLED, LOW);
+    Serial.println("Auto LED = OFF");
+  }
   delay(1000);
 }
 

@@ -24,12 +24,15 @@ long microsecondsToCentimeters(long microseconds)
 struct ProjectData {
   /*your data*/
   int32_t IsBoxEmpty;
-} project_data = {1}; //your value
+  int32_t Alert;
+  
+} project_data = {1,0}; //your value
 
 struct ServerData {
   /*your data*/
   int32_t IsBoxEmpty;
-} server_data = {1};// your value
+  int32_t Alert;
+} server_data = {1,0};// your value
 
 const char GET_SERVER_DATA = 1;
 const char GET_SERVER_DATA_RESULT = 2;
@@ -85,7 +88,7 @@ void setup() {
   Serial.println("ARDUINO READY!");
 }
 
-int32_t UserDetected,StillDetected,Alert,IsFloorWet = 0;
+int32_t UserDetected,StillDetected,IsFloorWet = 0;
 uint32_t last_sent_time = 0;
 boolean is_data_header = false;
 char expected_data_size = 0;
@@ -98,7 +101,8 @@ void loop() {
   //send to nodemcu
   if (cur_time - last_sent_time > 2000) {//always update
     send_to_nodemcu(UPDATE_PROJECT_DATA, &project_data, sizeof(ProjectData));
-    //send_to_nodemcu(GET_SERVER_DATA, &server_data, sizeof(ServerData));
+    send_to_nodemcu(GET_SERVER_DATA, &server_data, sizeof(ServerData));
+    
     last_sent_time = cur_time;
   }
 
@@ -120,6 +124,7 @@ void loop() {
     //Serial.println((byte)ch);
     if (cur_buffer_length == -1) {
       cur_data_header = ch;
+      Serial.println("=========== "+cur_data_header );
       switch (cur_data_header) {
         case GET_SERVER_DATA_RESULT:
         //unknown header
@@ -135,6 +140,7 @@ void loop() {
             ServerData *data = (ServerData*)buffer;
             //use data to control sensor
             server_data.IsBoxEmpty = data->IsBoxEmpty;
+            server_data.Alert = data->Alert;
           } break;
         }
         cur_buffer_length = -1;
@@ -152,8 +158,8 @@ void loop() {
     //Serial.println("Not Empty");
   }
   else{
-    if(Alert == 1){
-      Alert = 0;
+    if(project_data.Alert == 1){
+      project_data.Alert = 0;
     }
     project_data.IsBoxEmpty = 1;
     //Serial.println("Empty");
@@ -163,7 +169,7 @@ void loop() {
   ////////////////Check user walk pass the door/////////////////////////////////////////////////////////////////////////
   if(microsecondsToCentimeters(duration) < 10){
     if(StillDetected == 0){
-      if(Alert == 0){
+      if(project_data.Alert == 0){
         UserDetected++;
       }
       StillDetected = 1;
@@ -176,15 +182,15 @@ void loop() {
   Serial.println(microsecondsToCentimeters(duration));
   Serial.print("User still stand infront of sensor? = ");
   Serial.println(StillDetected);
-  ////////////////Alert when box isn't empty and user left the bathroom///////////////////////////////////////////////////////
-  if(project_data.IsBoxEmpty == 0 && UserDetected == 2 && Alert == 0){
+  ////////////////project_data.Alert when box isn't empty and user left the bathroom///////////////////////////////////////////////////////
+  if(project_data.IsBoxEmpty == 0 && UserDetected == 2 && project_data.Alert == 0){
     UserDetected--;
-    Alert = 1;
+    project_data.Alert = 1;
   }
   if(UserDetected == 2){
     UserDetected = 0;
   }
-  if(Alert == 1){
+  if(project_data.Alert == 1){
     analogWrite(BZ, HIGH);
     digitalWrite(LED, HIGH);
   }
@@ -194,8 +200,8 @@ void loop() {
   }
   Serial.print("User detected = ");
   Serial.println(UserDetected);
-  Serial.print("Alert = ");
-  Serial.println(Alert);
+  Serial.print("project_data.Alert = ");
+  Serial.println(project_data.Alert);
   //////////////////////Auto-Close when shower//////////////////////////////////////////////////////////
   Serial.print("Rain Voltage = ");
   Serial.println(analogRead(Rain));
@@ -211,7 +217,7 @@ void loop() {
   //////////////////////LED auto-on when open the box////////////////////////////////////////////////////////////////////////
   Serial.print("LDR = ");
   Serial.println(analogRead(LDR));
-  if(analogRead(LDR) > 100){
+  if(analogRead(LDR) > 80){
     digitalWrite(AutoLED, HIGH);
     Serial.println("Auto LED = ON");
   }
@@ -219,6 +225,6 @@ void loop() {
     digitalWrite(AutoLED, LOW);
     Serial.println("Auto LED = OFF");
   }
-  delay(1000);
+  delay(500);
 }
 
